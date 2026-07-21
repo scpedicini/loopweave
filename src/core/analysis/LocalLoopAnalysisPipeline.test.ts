@@ -38,4 +38,37 @@ describe('LocalLoopAnalysisPipeline', () => {
       expect(item.candidateId.startsWith('test-session:')).toBe(true)
     }
   })
+
+  it('spreads comparable alternatives across long periodic source material', () => {
+    const sampleRate = 12_000
+    const durationSeconds = 20
+    const samples = new Float32Array(sampleRate * durationSeconds)
+    const period = new Float32Array(sampleRate * 0.2)
+    for (let index = 0; index < period.length; index += 1) {
+      period[index] = Math.sin((2 * Math.PI * index) / period.length) * 0.55
+    }
+    for (let index = 0; index < samples.length; index += 1) {
+      samples[index] = period[index % period.length] ?? 0
+    }
+    const source: PlanarAudio = {
+      sampleRate,
+      lengthSamples: samples.length,
+      channels: [samples],
+    }
+
+    const result = new LocalLoopAnalysisPipeline().analyze('diversity-session', source, {
+      minimumDurationSeconds: 2,
+      maximumDurationSeconds: 4,
+      searchStartSeconds: 0,
+      searchEndSeconds: durationSeconds,
+      candidateCount: 5,
+      mode: 'balanced',
+    })
+    const centers = result.candidates.map(
+      (candidate) => (candidate.startSeconds + candidate.endSeconds) / 2,
+    )
+
+    expect(result.candidates).toHaveLength(5)
+    expect(Math.max(...centers) - Math.min(...centers)).toBeGreaterThan(10)
+  })
 })

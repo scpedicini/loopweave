@@ -33,6 +33,8 @@ interface RendererEvaluation {
 
 export type RefineProgress = (fraction: number) => void
 
+const DIVERSITY_QUALITY_WINDOW = 5
+
 export class SeamOptimizer {
   private readonly renderer = new LoopRenderer()
 
@@ -93,7 +95,12 @@ export class SeamOptimizer {
     }
 
     const sorted = refined.sort((left, right) => left.totalCost - right.totalCost)
-    const selected = this.selectFinalCandidates(sorted, options.candidateCount, source.sampleRate)
+    const selected = this.selectFinalCandidates(
+      sorted,
+      options.candidateCount,
+      rangeEndSample - rangeStartSample,
+      source.sampleRate,
+    )
     const medianDuration = median(
       selected.map(
         (candidate) => (candidate.endSample - candidate.startSample) / source.sampleRate,
@@ -387,26 +394,142 @@ export class SeamOptimizer {
   private selectFinalCandidates(
     candidates: readonly RefinedCandidate[],
     count: number,
+    searchSpanSamples: number,
     sampleRate: number,
   ): readonly RefinedCandidate[] {
+    const remaining = [...candidates]
     const selected: RefinedCandidate[] = []
-    for (const candidate of candidates) {
-      const duration = (candidate.endSample - candidate.startSample) / sampleRate
-      const distinct = selected.every((existing) => {
-        const existingDuration = (existing.endSample - existing.startSample) / sampleRate
-        const endpointDistance =
-          Math.abs(existing.startSample - candidate.startSample) / sampleRate +
-          Math.abs(existing.endSample - candidate.endSample) / sampleRate
-        return endpointDistance > 0.35 || Math.abs(existingDuration - duration) > 0.65
-      })
-      if (distinct) {
-        selected.push(candidate)
-      }
-      if (selected.length >= count) {
+    const strongest = remaining.shift()
+    if (strongest !== undefined) {
+      selected.push(strongest)
+    }
+
+    while (selected.length < count && remaining.length > 0) {
+      const strongestRemaining = remaining[0]
+      if (strongestRemaining === undefined) {
         break
       }
+      const qualityFloor =
+        this.qualityForCost(strongestRemaining.totalCost) - DIVERSITY_QUALITY_WINDOW
+      const comparableDistinct = remaining.filter(
+        (candidate) =>
+          this.qualityForCost(candidate.totalCost) >= qualityFloor &&
+          this.isDistinct(candidate, selected, sampleRate),
+      )
+      const next = this.mostValuableAlternative(
+        comparableDistinct,
+        selected,
+        strongestRemaining,
+        searchSpanSamples,
+      )
+      selected.push(next)
+      remaining.splice(remaining.indexOf(next), 1)
     }
-    return selected
+
+    return selected.sort((left, right) => left.totalCost - right.totalCost)
+  }
+
+  private mostValuableAlternative(
+    candidates: readonly RefinedCandidate[],
+    selected: readonly RefinedCandidate[],
+    strongestRemaining: RefinedCandidate,
+    searchSpanSamples: number,
+  ): RefinedCandidate {
+    let best = strongestRemaining
+    let bestUtility = this.minimumDiversity(strongestRemaining, selected, searchSpanSamples)
+    const strongestQuality = this.qualityForCost(strongestRemaining.totalCost)
+
+    for (const candidate of candidates) {
+      const diversity = this.minimumDiversity(candidate, selected, searchSpanSamples)
+      const qualityLoss = strongestQuality - this.qualityForCost(candidate.totalCost)
+      const utility = diversity - (qualityLoss / DIVERSITY_QUALITY_WINDOW) * 0.2
+      if (
+        utility > bestUtility ||
+        (utility === bestUtility && candidate.totalCost < best.totalCost)
+      ) {
+        best = candidate
+        bestUtility = utility
+      }
+    }
+    return best
+  }
+
+  private minimumDiversity(
+    candidate: RefinedCandidate,
+    selected: readonly RefinedCandidate[],
+    searchSpanSamples: number,
+  ): number {
+    let minimum = Number.POSITIVE_INFINITY
+    for (const existing of selected) {
+      const overlap = Math.max(
+        0,
+        Math.min(existing.endSample, candidate.endSample) -
+          Math.max(existing.startSample, candidate.startSample),
+      )
+      const union =
+        Math.max(existing.endSample, candidate.endSample) -
+        Math.min(existing.startSample, candidate.startSample)
+      const intersectionOverUnion = overlap / Math.max(1, union)
+      const existingDuration = existing.endSample - existing.startSample
+      const candidateDuration = candidate.endSample - candidate.startSample
+      const durationDifference =
+        Math.abs(existingDuration - candidateDuration) /
+        Math.max(1, existingDuration, candidateDuration)
+      const centerDifference =
+        Math.abs(
+          existing.startSample + existing.endSample - candidate.startSample - candidate.endSample,
+        ) / 2
+      const normalizedCenterDifference = clamp(
+        centerDifference / Math.max(1, searchSpanSamples),
+        0,
+        1,
+      )
+      const diversity =
+        normalizedCenterDifference * 0.65 +
+        (1 - intersectionOverUnion) * 0.25 +
+        durationDifference * 0.1
+      minimum = Math.min(minimum, diversity)
+    }
+    return minimum
+  }
+
+  private isDistinct(
+    candidate: RefinedCandidate,
+    selected: readonly RefinedCandidate[],
+    sampleRate: number,
+  ): boolean {
+    return selected.every((existing) => {
+      const overlap = Math.max(
+        0,
+        Math.min(existing.endSample, candidate.endSample) -
+          Math.max(existing.startSample, candidate.startSample),
+      )
+      const shorterDuration = Math.max(
+        1,
+        Math.min(
+          existing.endSample - existing.startSample,
+          candidate.endSample - candidate.startSample,
+        ),
+      )
+      const overlapFraction = overlap / shorterDuration
+      const centerDifference =
+        Math.abs(
+          existing.startSample + existing.endSample - candidate.startSample - candidate.endSample,
+        ) / 2
+      const existingDuration = existing.endSample - existing.startSample
+      const candidateDuration = candidate.endSample - candidate.startSample
+      const durationDifference = Math.abs(existingDuration - candidateDuration)
+      const tolerance = Math.max(
+        sampleRate * 0.5,
+        Math.min(sampleRate * 1.5, shorterDuration * 0.15),
+      )
+
+      return overlapFraction < 0.8 || centerDifference > tolerance || durationDifference > tolerance
+    })
+  }
+
+  private qualityForCost(totalCost: number): number {
+    return 100 * Math.exp(-totalCost * 0.62)
   }
 
   private toLoopCandidate(
