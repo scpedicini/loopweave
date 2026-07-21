@@ -34,11 +34,11 @@ Pure TypeScript DSP and orchestration. It accepts planar PCM and returns domain 
 
 ### Infrastructure (`src/infrastructure`)
 
-Browser adapters for `File`, `AudioContext`, `Worker`, playback, and local downloads. Browser-specific behavior terminates here.
+Browser adapters for `File`, `AudioContext`, `Worker`, and playback. These adapters keep browser decoding, worker transport, and audio playback out of the domain and DSP layers.
 
 ### Presentation (`src/presentation`)
 
-The application controller and waveform view depend only on `LoopEngine` and domain results. They do not import DSP implementations.
+The application controller owns browser UI orchestration, including file selection and download initiation. It uses `LoopEngine` for analysis operations and composes infrastructure adapters for file wrapping and playback. Presentation code consumes domain results and does not import analysis or DSP implementations.
 
 ### Worker (`src/worker`)
 
@@ -50,10 +50,10 @@ A discriminated-union protocol and the local engine host. The worker owns decode
 2. Downmix and resample a separate analysis signal to 12 kHz.
 3. Extract log-mel, energy, flatness, centroid, zero-crossing, and flux features.
 4. Normalize per recording and estimate stationarity, tonality, rhythmicity, transience, and texture confidence.
-5. Search endpoint recurrence in a constrained duration band while penalizing trajectory mismatch, nonstationarity, rare changes, and undesired length.
-6. Refine the strongest pairs at full sample rate.
+5. Search endpoint recurrence within the selected source range and duration band while penalizing trajectory mismatch, nonstationarity, rare changes, and undesired length.
+6. Form a refinement pool from globally strong and regionally representative pairs, then refine endpoints at full sample rate.
 7. Jointly test a hard cut and content-dependent crossfade durations/curves.
-8. Rank a diverse result set and retain the renderer with each candidate.
+8. Select quality-ranked, temporally diverse alternatives within a bounded quality tradeoff and retain the renderer with each candidate.
 9. Bake the circular overlap into the downloaded PCM so the file itself loops without runtime crossfade support.
 
 ## Backend path

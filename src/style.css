@@ -119,6 +119,12 @@ select:focus-visible,
   filter: drop-shadow(0 0 9px rgba(100, 233, 196, 0.2));
 }
 
+.topbar-actions {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
 .local-badge {
   display: inline-flex;
   gap: 8px;
@@ -136,6 +142,38 @@ select:focus-visible,
   border-radius: 50%;
   background: var(--mint);
   box-shadow: 0 0 14px rgba(100, 233, 196, 0.75);
+}
+
+.github-link {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.025);
+  place-items: center;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.github-link:hover {
+  border-color: rgba(100, 233, 196, 0.52);
+  color: var(--mint-bright);
+  background: rgba(100, 233, 196, 0.08);
+  transform: translateY(-1px);
+}
+
+.github-link:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 3px;
+}
+
+.github-link svg {
+  display: block;
 }
 
 main {
