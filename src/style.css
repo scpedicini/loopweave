@@ -335,10 +335,11 @@ main {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 52% center;
+  object-position: right center;
   opacity: var(--drop-artwork-opacity);
   pointer-events: none;
   transform: scale(var(--drop-artwork-scale));
+  transform-origin: right center;
   transition:
     opacity 240ms ease,
     transform 420ms ease;
@@ -1575,13 +1576,20 @@ footer {
     min-height: 385px;
   }
 
+  .drop-zone:hover,
+  .drop-zone.is-dragging,
+  .drop-zone.is-busy {
+    --drop-artwork-scale: 1;
+  }
+
   .drop-content {
     min-height: 385px;
     padding: 25px 23px;
   }
 
   .drop-artwork {
-    object-position: 58% center;
+    object-fit: contain;
+    object-position: center;
   }
 
   .drop-footnote {
