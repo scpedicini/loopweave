@@ -988,7 +988,7 @@ export class AudioTextureApp {
 
             <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Choose or drop an audio file">
               <input id="audio-file" type="file" accept="audio/*,.wav,.mp3,.flac,.ogg,.oga,.opus,.m4a,.aac,.aif,.aiff,.webm" hidden>
-              <img class="drop-artwork" src="${heroArtworkUrl}" width="1600" height="854" alt="">
+              <img class="drop-artwork" src="${heroArtworkUrl}" width="1200" height="630" alt="">
               <div class="drop-content">
                 <div class="drop-visual" aria-hidden="true">
                   <img src="${brandMarkUrl}" width="96" height="96" alt="">
