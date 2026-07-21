@@ -21,6 +21,8 @@ describe('LocalLoopAnalysisPipeline', () => {
     const result = new LocalLoopAnalysisPipeline().analyze('test-session', source, {
       minimumDurationSeconds: 1,
       maximumDurationSeconds: 3,
+      searchStartSeconds: 2,
+      searchEndSeconds: 5.5,
       candidateCount: 3,
       mode: 'balanced',
     })
@@ -28,7 +30,8 @@ describe('LocalLoopAnalysisPipeline', () => {
     expect(result.candidates.length).toBeGreaterThan(0)
     expect(result.candidates.length).toBeLessThanOrEqual(3)
     for (const item of result.candidates) {
-      expect(item.startSample).toBeGreaterThanOrEqual(0)
+      expect(item.startSeconds).toBeGreaterThanOrEqual(2)
+      expect(item.endSeconds).toBeLessThanOrEqual(5.5)
       expect(item.endSample).toBeGreaterThan(item.startSample)
       expect(item.loopDurationSeconds).toBeGreaterThan(0.5)
       expect(item.qualityScore).toBeGreaterThan(0)

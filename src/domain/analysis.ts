@@ -9,6 +9,8 @@ export type FadeCurve = 'linear' | 'equal-power' | 'correlation-matched'
 export interface LoopAnalysisOptions {
   readonly minimumDurationSeconds: number
   readonly maximumDurationSeconds: number
+  readonly searchStartSeconds: number
+  readonly searchEndSeconds: number
   readonly candidateCount: number
   readonly mode: AnalysisMode
 }

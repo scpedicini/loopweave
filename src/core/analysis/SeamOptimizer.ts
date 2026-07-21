@@ -45,6 +45,16 @@ export class SeamOptimizer {
     onProgress?: RefineProgress,
   ): readonly LoopCandidate[] {
     const refined: RefinedCandidate[] = []
+    const rangeStartSample = clamp(
+      Math.ceil(options.searchStartSeconds * source.sampleRate),
+      1,
+      source.lengthSamples - 2,
+    )
+    const rangeEndSample = clamp(
+      Math.floor(options.searchEndSeconds * source.sampleRate),
+      rangeStartSample + 2,
+      source.lengthSamples - 1,
+    )
     for (let index = 0; index < coarseCandidates.length; index += 1) {
       const coarse = coarseCandidates[index]
       if (coarse === undefined) {
@@ -52,19 +62,21 @@ export class SeamOptimizer {
       }
       const initialStart = clamp(
         Math.round(coarse.startSeconds * source.sampleRate),
-        1,
-        source.lengthSamples - 2,
+        rangeStartSample,
+        rangeEndSample - 2,
       )
       const initialEnd = clamp(
         Math.round(coarse.endSeconds * source.sampleRate),
         initialStart + 2,
-        source.lengthSamples - 1,
+        rangeEndSample,
       )
       const { startSample, endSample } = this.refineEndpoints(
         source,
         initialStart,
         initialEnd,
         profile,
+        rangeStartSample,
+        rangeEndSample,
       )
       const rendererEvaluation = this.chooseRenderer(source, startSample, endSample, profile)
       const totalCost = coarse.coarseCost * 0.72 + rendererEvaluation.combinedCost * 0.28
@@ -98,6 +110,8 @@ export class SeamOptimizer {
     initialStart: number,
     initialEnd: number,
     profile: ContentProfile,
+    rangeStartSample: number,
+    rangeEndSample: number,
   ): { readonly startSample: number; readonly endSample: number } {
     const loopLength = initialEnd - initialStart
     const endRadius = Math.min(Math.round(source.sampleRate * 0.1), Math.floor(loopLength * 0.08))
@@ -106,7 +120,7 @@ export class SeamOptimizer {
     let endSample = this.searchPosition(
       initialEnd,
       Math.max(initialStart + minimumLength, initialEnd - endRadius),
-      Math.min(source.lengthSamples - 1, initialEnd + endRadius),
+      Math.min(rangeEndSample, initialEnd + endRadius),
       coarseStep,
       (position) => this.boundaryCost(source, initialStart, position, profile),
     )
@@ -117,7 +131,7 @@ export class SeamOptimizer {
     )
     const startSample = this.searchPosition(
       initialStart,
-      Math.max(1, initialStart - startRadius),
+      Math.max(rangeStartSample, initialStart - startRadius),
       Math.min(endSample - minimumLength, initialStart + startRadius),
       Math.max(1, Math.floor(coarseStep / 2)),
       (position) => this.boundaryCost(source, position, endSample, profile),
@@ -126,7 +140,7 @@ export class SeamOptimizer {
     endSample = this.searchPosition(
       endSample,
       Math.max(startSample + minimumLength, endSample - coarseStep * 2),
-      Math.min(source.lengthSamples - 1, endSample + coarseStep * 2),
+      Math.min(rangeEndSample, endSample + coarseStep * 2),
       1,
       (position) => this.boundaryCost(source, startSample, position, profile),
     )

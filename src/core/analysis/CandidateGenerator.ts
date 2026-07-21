@@ -162,14 +162,15 @@ export class CandidateGenerator {
     }
     const rangeMaximum = new RangeMaximumTree(novelty)
     const heap = new BoundedCandidateHeap(Math.max(80, options.candidateCount * 30))
-    const finalStartFrame = frames.length - minimumFrameDistance - contextRadius
+    const firstAllowedFrame = this.firstFrameAtOrAfter(frames, options.searchStartSeconds)
+    const lastAllowedFrame = this.lastFrameAtOrBefore(frames, options.searchEndSeconds)
+    const firstStartFrame = Math.max(contextRadius, firstAllowedFrame)
+    const finalAllowedEndFrame = Math.min(frames.length - contextRadius - 1, lastAllowedFrame)
+    const finalStartFrame = finalAllowedEndFrame - minimumFrameDistance
 
-    for (let startFrame = contextRadius; startFrame <= finalStartFrame; startFrame += 1) {
+    for (let startFrame = firstStartFrame; startFrame <= finalStartFrame; startFrame += 1) {
       const firstEndFrame = startFrame + minimumFrameDistance
-      const finalEndFrame = Math.min(
-        frames.length - contextRadius - 1,
-        startFrame + maximumFrameDistance,
-      )
+      const finalEndFrame = Math.min(finalAllowedEndFrame, startFrame + maximumFrameDistance)
 
       for (let endFrame = firstEndFrame; endFrame <= finalEndFrame; endFrame += 1) {
         const recurrenceCost = this.contextDistance(frames, startFrame, endFrame, contextRadius)
@@ -225,12 +226,28 @@ export class CandidateGenerator {
       }
 
       if (startFrame % 20 === 0) {
-        onProgress?.(startFrame / Math.max(1, finalStartFrame))
+        onProgress?.(
+          (startFrame - firstStartFrame) / Math.max(1, finalStartFrame - firstStartFrame),
+        )
       }
     }
 
     onProgress?.(1)
     return this.diversify(heap.sorted(), Math.max(options.candidateCount * 8, 30), hopSeconds)
+  }
+
+  private firstFrameAtOrAfter(frames: readonly FeatureFrame[], timeSeconds: number): number {
+    const index = frames.findIndex((frame) => frame.timeSeconds >= timeSeconds)
+    return index < 0 ? frames.length : index
+  }
+
+  private lastFrameAtOrBefore(frames: readonly FeatureFrame[], timeSeconds: number): number {
+    for (let index = frames.length - 1; index >= 0; index -= 1) {
+      if ((frames[index]?.timeSeconds ?? Number.POSITIVE_INFINITY) <= timeSeconds) {
+        return index
+      }
+    }
+    return -1
   }
 
   private contextDistance(
