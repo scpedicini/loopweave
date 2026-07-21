@@ -82,7 +82,13 @@ export class LocalLoopAnalysisPipeline {
     options: LoopAnalysisOptions,
     sourceDuration: number,
   ): LoopAnalysisOptions {
-    const upperLimit = Math.max(0.5, sourceDuration - 0.35)
+    const searchStartSeconds = clamp(options.searchStartSeconds, 0, sourceDuration - 0.75)
+    const searchEndSeconds = clamp(
+      options.searchEndSeconds,
+      searchStartSeconds + 0.75,
+      sourceDuration,
+    )
+    const upperLimit = Math.max(0.5, searchEndSeconds - searchStartSeconds - 0.35)
     const minimumDurationSeconds = clamp(options.minimumDurationSeconds, 0.4, upperLimit)
     const maximumDurationSeconds = clamp(
       options.maximumDurationSeconds,
@@ -92,8 +98,9 @@ export class LocalLoopAnalysisPipeline {
     return {
       minimumDurationSeconds,
       maximumDurationSeconds,
+      searchStartSeconds,
+      searchEndSeconds,
       candidateCount: Math.round(clamp(options.candidateCount, 1, 12)),
-      qualityBias: clamp(options.qualityBias, 0, 1),
       mode: options.mode,
     }
   }

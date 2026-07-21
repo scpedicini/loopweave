@@ -1,6 +1,14 @@
 # Loopweave
 
+[![Loopweave, local audio texture lab](./public/brand/loopweave-social.jpg)](https://loopweave.specr.net)
+
 Loopweave is a browser-first audio texture tool that finds, renders, auditions, and exports perceptually promising loops from an arbitrary recording. Audio decoding and every analysis step happen locally; user audio is never uploaded. These audio files can be used for ambience, ASMR, and other loopable content.
+
+Loopweave is fully deployed and ready to use at [loopweave.specr.net](https://loopweave.specr.net). No installation or local build is required.
+
+## Demo
+
+<video src="./docs/assets/loopweave-demo.mp4" controls width="1248"></video>
 
 ## Current vertical slice
 

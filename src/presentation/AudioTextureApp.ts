@@ -40,14 +40,20 @@ interface AppElements {
   readonly sourcePlaybackButton: HTMLButtonElement
   readonly waveformCanvas: HTMLCanvasElement
   readonly waveformPlayhead: HTMLElement
+  readonly waveformRangeOverlay: HTMLElement
+  readonly waveformRangeLeftMask: HTMLElement
+  readonly waveformRangeRightMask: HTMLElement
+  readonly waveformRangeStart: HTMLButtonElement
+  readonly waveformRangeEnd: HTMLButtonElement
+  readonly waveformRangeWindow: HTMLButtonElement
+  readonly waveformRangeValue: HTMLElement
+  readonly waveformRangeReset: HTMLButtonElement
   readonly analysisForm: HTMLFormElement
   readonly analysisFieldset: HTMLFieldSetElement
   readonly minimumDuration: HTMLInputElement
   readonly maximumDuration: HTMLInputElement
   readonly maximumDurationMax: HTMLButtonElement
   readonly candidateCount: HTMLSelectElement
-  readonly qualityBias: HTMLInputElement
-  readonly qualityBiasOutput: HTMLOutputElement
   readonly analysisMode: HTMLSelectElement
   readonly analyzeButton: HTMLButtonElement
   readonly progressPanel: HTMLElement
@@ -81,6 +87,7 @@ export class AudioTextureApp {
   private sourceAudio: HTMLAudioElement | undefined
   private sourceAudioUrl: string | undefined
   private waveformAnimationFrameId: number | undefined
+  private rangeAnalysisTimerId: number | undefined
   private busy = false
   private hasConfiguredDurationRange = false
 
@@ -89,7 +96,21 @@ export class AudioTextureApp {
     this.engine = engine
     this.root.innerHTML = this.template()
     this.elements = this.collectElements()
-    this.waveform = new WaveformView(this.elements.waveformCanvas, this.elements.waveformPlayhead)
+    this.waveform = new WaveformView(
+      this.elements.waveformCanvas,
+      this.elements.waveformPlayhead,
+      {
+        overlay: this.elements.waveformRangeOverlay,
+        leftMask: this.elements.waveformRangeLeftMask,
+        rightMask: this.elements.waveformRangeRightMask,
+        startHandle: this.elements.waveformRangeStart,
+        endHandle: this.elements.waveformRangeEnd,
+        window: this.elements.waveformRangeWindow,
+        value: this.elements.waveformRangeValue,
+        resetButton: this.elements.waveformRangeReset,
+      },
+      this.handleWaveformRangeCommit,
+    )
     this.player = new LoopPlayer((state) => this.updatePlaybackState(state))
     this.loopProgress = new LoopProgressView(
       this.elements.candidateList,
@@ -111,11 +132,9 @@ export class AudioTextureApp {
     elements.analysisForm.addEventListener('submit', this.handleAnalysisSubmit)
     elements.maximumDuration.addEventListener('input', this.updateMaximumDurationMode)
     elements.maximumDurationMax.addEventListener('click', this.useSourceMaximumDuration)
-    elements.qualityBias.addEventListener('input', this.updateQualityOutput)
     elements.candidateList.addEventListener('click', this.handleCandidateClick)
     window.addEventListener('beforeunload', this.handleBeforeUnload)
     this.updateMaximumDurationMode()
-    this.updateQualityOutput()
   }
 
   private readonly openFilePicker = (event: Event): void => {
@@ -198,6 +217,7 @@ export class AudioTextureApp {
     this.player.stop()
     try {
       this.elements.sourcePlaybackButton.disabled = true
+      this.seekSourceToRangeStart(true)
       await audio.play()
     } catch (error) {
       this.showError(error)
@@ -211,9 +231,21 @@ export class AudioTextureApp {
     this.updateSourcePlaybackState()
   }
 
-  private readonly updateQualityOutput = (): void => {
-    const value = Number.parseInt(this.elements.qualityBias.value, 10)
-    this.elements.qualityBiasOutput.value = `${value}% seam quality`
+  private readonly handleSourceMetadataLoaded = (): void => {
+    this.seekSourceToRangeStart(true)
+  }
+
+  private readonly handleSourceTimeUpdate = (): void => {
+    this.seekSourceToRangeStart(false)
+  }
+
+  private readonly handleSourceEnded = (): void => {
+    const audio = this.sourceAudio
+    if (audio === undefined || this.busy) {
+      return
+    }
+    this.seekSourceToRangeStart(true)
+    void audio.play().catch((error: unknown) => this.showError(error))
   }
 
   private readonly useSourceMaximumDuration = (): void => {
@@ -261,8 +293,31 @@ export class AudioTextureApp {
     void this.close()
   }
 
+  private readonly handleWaveformRangeCommit = (): void => {
+    this.player.stop()
+    this.stopSourcePlayback()
+    this.waveform.setCandidate(undefined)
+    const searchRange = this.waveform.getSearchRange()
+    if (searchRange !== undefined) {
+      this.configureDurationBounds(searchRange.endSeconds - searchRange.startSeconds)
+    }
+    if (this.rangeAnalysisTimerId !== undefined) {
+      window.clearTimeout(this.rangeAnalysisTimerId)
+    }
+    this.rangeAnalysisTimerId = window.setTimeout(() => {
+      this.rangeAnalysisTimerId = undefined
+      if (!this.busy && this.metadata !== undefined) {
+        void this.analyze()
+      }
+    }, 350)
+  }
+
   private async loadFile(file: File): Promise<void> {
     try {
+      if (this.rangeAnalysisTimerId !== undefined) {
+        window.clearTimeout(this.rangeAnalysisTimerId)
+        this.rangeAnalysisTimerId = undefined
+      }
       this.validateFile(file)
       this.setBusy(true)
       this.clearError()
@@ -546,10 +601,13 @@ export class AudioTextureApp {
     this.clearSourceAudio()
     const url = URL.createObjectURL(file)
     const audio = new Audio(url)
-    audio.loop = true
+    audio.loop = false
     audio.preload = 'auto'
     audio.addEventListener('play', this.handleSourcePlaybackChange)
     audio.addEventListener('pause', this.handleSourcePlaybackChange)
+    audio.addEventListener('loadedmetadata', this.handleSourceMetadataLoaded)
+    audio.addEventListener('timeupdate', this.handleSourceTimeUpdate)
+    audio.addEventListener('ended', this.handleSourceEnded)
     this.sourceAudioUrl = url
     this.sourceAudio = audio
     this.elements.sourcePlaybackButton.disabled = this.busy
@@ -563,7 +621,7 @@ export class AudioTextureApp {
     }
     audio.pause()
     if (audio.readyState > 0) {
-      audio.currentTime = 0
+      this.seekSourceToRangeStart(true)
     }
     this.updateSourcePlaybackState()
   }
@@ -574,6 +632,9 @@ export class AudioTextureApp {
     if (audio !== undefined) {
       audio.removeEventListener('play', this.handleSourcePlaybackChange)
       audio.removeEventListener('pause', this.handleSourcePlaybackChange)
+      audio.removeEventListener('loadedmetadata', this.handleSourceMetadataLoaded)
+      audio.removeEventListener('timeupdate', this.handleSourceTimeUpdate)
+      audio.removeEventListener('ended', this.handleSourceEnded)
       audio.pause()
       audio.removeAttribute('src')
       audio.load()
@@ -617,6 +678,7 @@ export class AudioTextureApp {
   private waveformPlaybackSourceTime(): number | undefined {
     const sourceAudio = this.sourceAudio
     if (sourceAudio !== undefined && !sourceAudio.paused) {
+      this.seekSourceToRangeStart(false)
       return sourceAudio.currentTime
     }
     const position = this.player.playbackPosition
@@ -632,6 +694,17 @@ export class AudioTextureApp {
     return (
       candidate.startSeconds + (candidate.endSeconds - candidate.startSeconds) * position.progress
     )
+  }
+
+  private seekSourceToRangeStart(force: boolean): void {
+    const audio = this.sourceAudio
+    const range = this.waveform.getSearchRange()
+    if (audio === undefined || range === undefined || audio.readyState === 0) {
+      return
+    }
+    if (force || audio.currentTime < range.startSeconds || audio.currentTime >= range.endSeconds) {
+      audio.currentTime = range.startSeconds
+    }
   }
 
   private showProgress(progress: EngineProgress): void {
@@ -653,6 +726,7 @@ export class AudioTextureApp {
 
   private setBusy(busy: boolean): void {
     this.busy = busy
+    this.waveform.setDisabled(busy)
     this.elements.analysisFieldset.disabled = busy
     this.elements.chooseFileButton.disabled = busy
     this.elements.sourcePlaybackButton.disabled = busy || this.sourceAudio === undefined
@@ -733,7 +807,6 @@ export class AudioTextureApp {
       Number.parseFloat(this.elements.maximumDuration.max),
     )
     const candidateCount = Number.parseInt(this.elements.candidateCount.value, 10)
-    const qualityBias = Number.parseInt(this.elements.qualityBias.value, 10) / 100
     const modeValue = this.elements.analysisMode.value
     if (!this.isAnalysisMode(modeValue)) {
       throw new Error('Unknown analysis mode.')
@@ -744,11 +817,16 @@ export class AudioTextureApp {
     if (maximumDurationSeconds < minimumDurationSeconds) {
       throw new Error('Maximum loop duration must be greater than the minimum duration.')
     }
+    const searchRange = this.waveform.getSearchRange()
+    if (searchRange === undefined) {
+      throw new Error('Choose an allowed source range before analyzing.')
+    }
     return {
       minimumDurationSeconds,
       maximumDurationSeconds,
+      searchStartSeconds: searchRange.startSeconds,
+      searchEndSeconds: searchRange.endSeconds,
       candidateCount,
-      qualityBias,
       mode: modeValue,
     }
   }
@@ -817,6 +895,10 @@ export class AudioTextureApp {
   }
 
   private async close(): Promise<void> {
+    if (this.rangeAnalysisTimerId !== undefined) {
+      window.clearTimeout(this.rangeAnalysisTimerId)
+      this.rangeAnalysisTimerId = undefined
+    }
     this.clearSourceAudio()
     this.waveform.destroy()
     await Promise.all([this.player.close(), this.engine.close()])
@@ -836,14 +918,20 @@ export class AudioTextureApp {
       sourcePlaybackButton: this.required('#source-playback'),
       waveformCanvas: this.required('#waveform'),
       waveformPlayhead: this.required('#waveform-playhead'),
+      waveformRangeOverlay: this.required('#waveform-range-overlay'),
+      waveformRangeLeftMask: this.required('#waveform-range-left-mask'),
+      waveformRangeRightMask: this.required('#waveform-range-right-mask'),
+      waveformRangeStart: this.required('#waveform-range-start'),
+      waveformRangeEnd: this.required('#waveform-range-end'),
+      waveformRangeWindow: this.required('#waveform-range-window'),
+      waveformRangeValue: this.required('#waveform-range-value'),
+      waveformRangeReset: this.required('#waveform-range-reset'),
       analysisForm: this.required('#analysis-form'),
       analysisFieldset: this.required('#analysis-fieldset'),
       minimumDuration: this.required('#minimum-duration'),
       maximumDuration: this.required('#maximum-duration'),
       maximumDurationMax: this.required('#maximum-duration-max'),
       candidateCount: this.required('#candidate-count'),
-      qualityBias: this.required('#quality-bias'),
-      qualityBiasOutput: this.required('#quality-bias-output'),
       analysisMode: this.required('#analysis-mode'),
       analyzeButton: this.required('#analyze-button'),
       progressPanel: this.required('#progress-panel'),
@@ -877,7 +965,14 @@ export class AudioTextureApp {
             <img class="brand-mark" src="${brandMarkUrl}" width="38" height="38" alt="">
             <span>Loopweave</span>
           </a>
-          <div class="local-badge"><span></span> Local DSP · nothing uploaded</div>
+          <div class="topbar-actions">
+            <div class="local-badge"><span></span> Local DSP · nothing uploaded</div>
+            <a class="github-link" href="https://github.com/scpedicini/loopweave" target="_blank" rel="noopener noreferrer" aria-label="View Loopweave on GitHub" title="View Loopweave on GitHub">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path fill="currentColor" d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.1c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.4 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.4 11.4 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.7 1.6.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3Z"/>
+              </svg>
+            </a>
+          </div>
         </header>
 
         <main id="top">
@@ -921,15 +1016,25 @@ export class AudioTextureApp {
                 </div>
                 <div class="source-tools">
                   <div id="source-metadata" class="source-metadata"></div>
-                  <button id="source-playback" class="button button--source" type="button" aria-pressed="false" title="Loop the untouched source recording" disabled>▶ Play source</button>
+                  <button id="source-playback" class="button button--source" type="button" aria-pressed="false" title="Loop the source within the allowed range" disabled>▶ Play source</button>
                 </div>
               </header>
               <div class="waveform-frame">
                 <div class="waveform-stage">
                   <canvas id="waveform" aria-label="Waveform, selected loop boundaries, and playback position"></canvas>
+                  <div id="waveform-range-overlay" class="waveform-range-overlay" aria-label="Allowed loop search range">
+                    <span id="waveform-range-left-mask" class="waveform-range-mask waveform-range-mask--left" aria-hidden="true"></span>
+                    <span id="waveform-range-right-mask" class="waveform-range-mask waveform-range-mask--right" aria-hidden="true"></span>
+                    <button id="waveform-range-window" class="waveform-range-window" type="button" role="slider" data-range-target="window" aria-label="Move allowed range" title="Drag to move the allowed range"><span>Drag range</span></button>
+                    <button id="waveform-range-start" class="waveform-range-handle waveform-range-handle--start" type="button" role="slider" data-range-target="start" aria-label="Allowed range start" title="Drag the start bracket"><span aria-hidden="true"></span></button>
+                    <button id="waveform-range-end" class="waveform-range-handle waveform-range-handle--end" type="button" role="slider" data-range-target="end" aria-label="Allowed range end" title="Drag the end bracket"><span aria-hidden="true"></span></button>
+                  </div>
                   <span id="waveform-playhead" class="waveform-playhead" aria-hidden="true" hidden></span>
                 </div>
-                <div class="waveform-legend"><span><i class="legend-source"></i>Source</span><span><i class="legend-loop"></i>Selected loop</span><span><i class="legend-fade"></i>Overlap region</span></div>
+                <div class="waveform-footer">
+                  <div class="waveform-range-readout"><span class="waveform-range-label">Allowed range</span><output id="waveform-range-value">Full source</output><button id="waveform-range-reset" type="button" disabled>Clear range</button></div>
+                  <div class="waveform-legend"><span><i class="legend-source"></i>Source</span><span><i class="legend-loop"></i>Selected loop</span><span><i class="legend-fade"></i>Overlap region</span></div>
+                </div>
               </div>
             </div>
 
@@ -944,20 +1049,15 @@ export class AudioTextureApp {
                     <div class="control-row control-row--split">
                       <div class="duration-field">
                         <label for="minimum-duration">Minimum length</label><span>seconds</span>
-                        <input id="minimum-duration" type="number" min="0.4" step="0.1" value="2.0">
+                        <input id="minimum-duration" type="number" min="0.4" step="0.1" value="15">
                       </div>
                       <div class="duration-field">
                         <label for="maximum-duration">Maximum length</label><span id="maximum-duration-help">0 = source max</span>
-                        <span class="duration-input"><input id="maximum-duration" type="number" min="0" step="0.1" value="30" aria-describedby="maximum-duration-help"><button id="maximum-duration-max" class="duration-max-button" type="button" aria-pressed="false" title="Use the longest loop this source can support">MAX</button></span>
+                        <span class="duration-input"><input id="maximum-duration" type="number" min="0" step="0.1" value="0" aria-describedby="maximum-duration-help"><button id="maximum-duration-max" class="duration-max-button" type="button" aria-pressed="false" title="Use the longest loop this source can support">MAX</button></span>
                       </div>
                     </div>
-                    <label class="control-row">Objective<select id="analysis-mode"><option value="balanced">Balanced</option><option value="cleanest">Cleanest seam</option><option value="longest">Prefer length</option></select></label>
+                    <label class="control-row">Objective<select id="analysis-mode"><option value="balanced">Balanced</option><option value="cleanest" selected>Cleanest seam</option><option value="longest">Prefer length</option></select></label>
                     <label class="control-row">Alternatives<select id="candidate-count"><option value="3">3 candidates</option><option value="5" selected>5 candidates</option><option value="8">8 candidates</option></select></label>
-                    <label class="control-row control-row--range">
-                      <span>Quality vs. length</span>
-                      <input id="quality-bias" type="range" min="0" max="100" value="75">
-                      <output id="quality-bias-output" for="quality-bias">75% seam quality</output>
-                    </label>
                     <button id="analyze-button" class="button button--analyze" type="submit"><span>Analyze again</span><b>→</b></button>
                   </fieldset>
                 </form>

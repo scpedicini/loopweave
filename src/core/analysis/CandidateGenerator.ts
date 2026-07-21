@@ -15,6 +15,8 @@ export interface CoarseCandidate {
   readonly coarseCost: number
 }
 
+const BALANCED_QUALITY_BIAS = 0.75
+
 export type CandidateProgress = (fraction: number) => void
 
 class RangeMaximumTree {
@@ -160,14 +162,20 @@ export class CandidateGenerator {
     }
     const rangeMaximum = new RangeMaximumTree(novelty)
     const heap = new BoundedCandidateHeap(Math.max(80, options.candidateCount * 30))
-    const finalStartFrame = frames.length - minimumFrameDistance - contextRadius
+    const regionCount = Math.min(16, Math.max(4, options.candidateCount * 2))
+    const regionalHeaps = Array.from(
+      { length: regionCount },
+      () => new BoundedCandidateHeap(Math.max(4, options.candidateCount)),
+    )
+    const firstAllowedFrame = this.firstFrameAtOrAfter(frames, options.searchStartSeconds)
+    const lastAllowedFrame = this.lastFrameAtOrBefore(frames, options.searchEndSeconds)
+    const firstStartFrame = Math.max(contextRadius, firstAllowedFrame)
+    const finalAllowedEndFrame = Math.min(frames.length - contextRadius - 1, lastAllowedFrame)
+    const finalStartFrame = finalAllowedEndFrame - minimumFrameDistance
 
-    for (let startFrame = contextRadius; startFrame <= finalStartFrame; startFrame += 1) {
+    for (let startFrame = firstStartFrame; startFrame <= finalStartFrame; startFrame += 1) {
       const firstEndFrame = startFrame + minimumFrameDistance
-      const finalEndFrame = Math.min(
-        frames.length - contextRadius - 1,
-        startFrame + maximumFrameDistance,
-      )
+      const finalEndFrame = Math.min(finalAllowedEndFrame, startFrame + maximumFrameDistance)
 
       for (let endFrame = firstEndFrame; endFrame <= finalEndFrame; endFrame += 1) {
         const recurrenceCost = this.contextDistance(frames, startFrame, endFrame, contextRadius)
@@ -208,7 +216,7 @@ export class CandidateGenerator {
         if (start === undefined || end === undefined) {
           continue
         }
-        heap.add({
+        const candidate: CoarseCandidate = {
           startFrame,
           endFrame,
           startSeconds: start.timeSeconds,
@@ -219,16 +227,39 @@ export class CandidateGenerator {
           rareEventCost,
           trajectoryCost,
           coarseCost,
-        })
+        }
+        heap.add(candidate)
+        regionalHeaps[this.regionIndex(candidate, options, regionCount)]?.add(candidate)
       }
 
       if (startFrame % 20 === 0) {
-        onProgress?.(startFrame / Math.max(1, finalStartFrame))
+        onProgress?.(
+          (startFrame - firstStartFrame) / Math.max(1, finalStartFrame - firstStartFrame),
+        )
       }
     }
 
     onProgress?.(1)
-    return this.diversify(heap.sorted(), Math.max(options.candidateCount * 8, 30), hopSeconds)
+    return this.createRefinementPool(
+      heap.sorted(),
+      regionalHeaps.map((regionalHeap) => regionalHeap.sorted()),
+      Math.max(options.candidateCount * 8, 30),
+      hopSeconds,
+    )
+  }
+
+  private firstFrameAtOrAfter(frames: readonly FeatureFrame[], timeSeconds: number): number {
+    const index = frames.findIndex((frame) => frame.timeSeconds >= timeSeconds)
+    return index < 0 ? frames.length : index
+  }
+
+  private lastFrameAtOrBefore(frames: readonly FeatureFrame[], timeSeconds: number): number {
+    for (let index = frames.length - 1; index >= 0; index -= 1) {
+      if ((frames[index]?.timeSeconds ?? Number.POSITIVE_INFINITY) <= timeSeconds) {
+        return index
+      }
+    }
+    return -1
   }
 
   private contextDistance(
@@ -287,30 +318,98 @@ export class CandidateGenerator {
     if (options.mode === 'cleanest') {
       return 0.025
     }
-    return 0.18 * (1 - options.qualityBias) + 0.035
+    return 0.18 * (1 - BALANCED_QUALITY_BIAS) + 0.035
   }
 
-  private diversify(
-    candidates: readonly CoarseCandidate[],
+  private regionIndex(
+    candidate: CoarseCandidate,
+    options: LoopAnalysisOptions,
+    regionCount: number,
+  ): number {
+    const centerSeconds = (candidate.startSeconds + candidate.endSeconds) / 2
+    const searchDuration = Math.max(1e-6, options.searchEndSeconds - options.searchStartSeconds)
+    const normalizedCenter = clamp(
+      (centerSeconds - options.searchStartSeconds) / searchDuration,
+      0,
+      1,
+    )
+    return Math.min(regionCount - 1, Math.floor(normalizedCenter * regionCount))
+  }
+
+  private createRefinementPool(
+    globalCandidates: readonly CoarseCandidate[],
+    regionalCandidates: readonly (readonly CoarseCandidate[])[],
     maximumCount: number,
     hopSeconds: number,
   ): readonly CoarseCandidate[] {
     const selected: CoarseCandidate[] = []
-    for (const candidate of candidates) {
-      const isDistinct = selected.every((existing) => {
-        const endpointSeparation =
-          Math.abs(existing.startSeconds - candidate.startSeconds) +
-          Math.abs(existing.endSeconds - candidate.endSeconds)
-        const durationSeparation = Math.abs(existing.durationSeconds - candidate.durationSeconds)
-        return endpointSeparation > hopSeconds * 2 || durationSeparation > 0.75
-      })
-      if (isDistinct) {
-        selected.push(candidate)
+    const included = new Set<string>()
+
+    for (const region of regionalCandidates) {
+      const candidate = region.find((item) => this.isDistinct(item, selected, hopSeconds))
+      if (candidate !== undefined) {
+        this.addToPool(candidate, selected, included)
       }
+    }
+
+    for (const candidate of globalCandidates) {
+      if (selected.length >= maximumCount) {
+        return selected.sort((left, right) => left.coarseCost - right.coarseCost)
+      }
+      if (this.isDistinct(candidate, selected, hopSeconds)) {
+        this.addToPool(candidate, selected, included)
+      }
+    }
+
+    // Keep close variants available as a quality-preserving fallback when the source genuinely
+    // does not contain enough strong, distinct regions.
+    for (const candidate of globalCandidates) {
       if (selected.length >= maximumCount) {
         break
       }
+      this.addToPool(candidate, selected, included)
     }
-    return selected
+
+    return selected.sort((left, right) => left.coarseCost - right.coarseCost)
+  }
+
+  private addToPool(
+    candidate: CoarseCandidate,
+    selected: CoarseCandidate[],
+    included: Set<string>,
+  ): void {
+    const key = `${candidate.startFrame}:${candidate.endFrame}`
+    if (included.has(key)) {
+      return
+    }
+    selected.push(candidate)
+    included.add(key)
+  }
+
+  private isDistinct(
+    candidate: CoarseCandidate,
+    selected: readonly CoarseCandidate[],
+    hopSeconds: number,
+  ): boolean {
+    return selected.every((existing) => {
+      const overlap = Math.max(
+        0,
+        Math.min(existing.endSeconds, candidate.endSeconds) -
+          Math.max(existing.startSeconds, candidate.startSeconds),
+      )
+      const shorterDuration = Math.max(
+        hopSeconds,
+        Math.min(existing.durationSeconds, candidate.durationSeconds),
+      )
+      const overlapFraction = overlap / shorterDuration
+      const centerDifference = Math.abs(
+        (existing.startSeconds + existing.endSeconds) / 2 -
+          (candidate.startSeconds + candidate.endSeconds) / 2,
+      )
+      const durationDifference = Math.abs(existing.durationSeconds - candidate.durationSeconds)
+      const tolerance = Math.max(hopSeconds * 3, Math.min(1.5, shorterDuration * 0.15))
+
+      return overlapFraction < 0.8 || centerDifference > tolerance || durationDifference > tolerance
+    })
   }
 }

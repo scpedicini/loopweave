@@ -1,13 +1,28 @@
 {
-  "name": "audio-texture",
+  "name": "loopweave",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "A browser-first audio texture tool for finding, rendering, auditioning, and exporting seamless loops from arbitrary recordings.",
+  "author": {
+    "name": "Shaun Pedicini",
+    "url": "https://mordenstar.com"
+  },
+  "license": "MIT",
+  "homepage": "https://loopweave.specr.net",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scpedicini/loopweave.git"
+  },
+  "bugs": {
+    "url": "https://github.com/scpedicini/loopweave/issues"
+  },
   "packageManager": "pnpm@10.8.1",
   "type": "module",
   "scripts": {
     "dev": "vite --port 6772",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "brand:icons": "bash scripts/generate-brand-icons.sh",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -5,8 +5,16 @@ describe('durationRangeForSource', () => {
   it('uses source-aware defaults for the first file', () => {
     expect(durationRangeForSource(60)).toEqual({
       availableMaximumSeconds: 59.65,
-      minimumSeconds: 2,
-      maximumSeconds: 30,
+      minimumSeconds: 15,
+      maximumSeconds: 0,
+    })
+  })
+
+  it('uses the longest supported duration when the first file is shorter than 15 seconds', () => {
+    expect(durationRangeForSource(12)).toEqual({
+      availableMaximumSeconds: 11.65,
+      minimumSeconds: 11.6,
+      maximumSeconds: 0,
     })
   })
 
