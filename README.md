@@ -8,7 +8,7 @@ Loopweave is fully deployed and ready to use at [loopweave.specr.net](https://lo
 
 ## Demo
 
-<video src="https://raw.githubusercontent.com/scpedicini/loopweave/refs/heads/main/docs/assets/loopweave-demo.mp4" controls></video>
+https://github.com/user-attachments/assets/d4944d00-9468-4ee2-b075-58994dfba06e
 
 ## Current vertical slice
 
