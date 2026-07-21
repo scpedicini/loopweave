@@ -1,0 +1,49 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
+  "files": {
+    "includes": [
+      "**",
+      "!node_modules",
+      "!dist",
+      "!public/*.svg",
+      "!Research synthesis automatic extraction of seamless audio loops.md"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
+      "trailingCommas": "all"
+    }
+  },
+  "json": {
+    "formatter": {
+      "enabled": true
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "noUnusedVariables": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error"
+      }
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

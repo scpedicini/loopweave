@@ -1,0 +1,26 @@
+{
+  "name": "audio-texture",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.8.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 6772",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "check": "biome check .",
+    "quality": "pnpm run check && pnpm run typecheck && pnpm run test && pnpm run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.4",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vitest": "^4.1.10"
+  }
+}
