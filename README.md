@@ -42,6 +42,6 @@ Canonical artwork and the generated-file mapping are documented in
 
 ## Browser constraints
 
-`decodeAudioData()` decodes a complete file into memory. Stereo 48 kHz float PCM costs roughly 22 MiB per minute before temporary buffers. The current application is therefore desktop-first. Streaming codecs, OPFS scratch storage, and WebAssembly/SIMD kernels are planned performance layers, not architectural rewrites.
+While the application technically works on mobile, `decodeAudioData()` decodes a complete file into memory. Stereo 48 kHz float PCM costs roughly 22 MiB per minute before temporary buffers. The current application is therefore desktop-first. Streaming codecs, OPFS scratch storage, and WebAssembly/SIMD kernels are planned performance layers, not architectural rewrites.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the component boundaries and backend path.
