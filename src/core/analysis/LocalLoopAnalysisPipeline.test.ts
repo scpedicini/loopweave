@@ -22,7 +22,6 @@ describe('LocalLoopAnalysisPipeline', () => {
       minimumDurationSeconds: 1,
       maximumDurationSeconds: 3,
       candidateCount: 3,
-      qualityBias: 0.8,
       mode: 'balanced',
     })
 

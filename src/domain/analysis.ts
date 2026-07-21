@@ -10,7 +10,6 @@ export interface LoopAnalysisOptions {
   readonly minimumDurationSeconds: number
   readonly maximumDurationSeconds: number
   readonly candidateCount: number
-  readonly qualityBias: number
   readonly mode: AnalysisMode
 }
 

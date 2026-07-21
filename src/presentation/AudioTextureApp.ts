@@ -46,8 +46,6 @@ interface AppElements {
   readonly maximumDuration: HTMLInputElement
   readonly maximumDurationMax: HTMLButtonElement
   readonly candidateCount: HTMLSelectElement
-  readonly qualityBias: HTMLInputElement
-  readonly qualityBiasOutput: HTMLOutputElement
   readonly analysisMode: HTMLSelectElement
   readonly analyzeButton: HTMLButtonElement
   readonly progressPanel: HTMLElement
@@ -111,11 +109,9 @@ export class AudioTextureApp {
     elements.analysisForm.addEventListener('submit', this.handleAnalysisSubmit)
     elements.maximumDuration.addEventListener('input', this.updateMaximumDurationMode)
     elements.maximumDurationMax.addEventListener('click', this.useSourceMaximumDuration)
-    elements.qualityBias.addEventListener('input', this.updateQualityOutput)
     elements.candidateList.addEventListener('click', this.handleCandidateClick)
     window.addEventListener('beforeunload', this.handleBeforeUnload)
     this.updateMaximumDurationMode()
-    this.updateQualityOutput()
   }
 
   private readonly openFilePicker = (event: Event): void => {
@@ -209,11 +205,6 @@ export class AudioTextureApp {
 
   private readonly handleSourcePlaybackChange = (): void => {
     this.updateSourcePlaybackState()
-  }
-
-  private readonly updateQualityOutput = (): void => {
-    const value = Number.parseInt(this.elements.qualityBias.value, 10)
-    this.elements.qualityBiasOutput.value = `${value}% seam quality`
   }
 
   private readonly useSourceMaximumDuration = (): void => {
@@ -733,7 +724,6 @@ export class AudioTextureApp {
       Number.parseFloat(this.elements.maximumDuration.max),
     )
     const candidateCount = Number.parseInt(this.elements.candidateCount.value, 10)
-    const qualityBias = Number.parseInt(this.elements.qualityBias.value, 10) / 100
     const modeValue = this.elements.analysisMode.value
     if (!this.isAnalysisMode(modeValue)) {
       throw new Error('Unknown analysis mode.')
@@ -748,7 +738,6 @@ export class AudioTextureApp {
       minimumDurationSeconds,
       maximumDurationSeconds,
       candidateCount,
-      qualityBias,
       mode: modeValue,
     }
   }
@@ -842,8 +831,6 @@ export class AudioTextureApp {
       maximumDuration: this.required('#maximum-duration'),
       maximumDurationMax: this.required('#maximum-duration-max'),
       candidateCount: this.required('#candidate-count'),
-      qualityBias: this.required('#quality-bias'),
-      qualityBiasOutput: this.required('#quality-bias-output'),
       analysisMode: this.required('#analysis-mode'),
       analyzeButton: this.required('#analyze-button'),
       progressPanel: this.required('#progress-panel'),
@@ -944,20 +931,15 @@ export class AudioTextureApp {
                     <div class="control-row control-row--split">
                       <div class="duration-field">
                         <label for="minimum-duration">Minimum length</label><span>seconds</span>
-                        <input id="minimum-duration" type="number" min="0.4" step="0.1" value="2.0">
+                        <input id="minimum-duration" type="number" min="0.4" step="0.1" value="15">
                       </div>
                       <div class="duration-field">
                         <label for="maximum-duration">Maximum length</label><span id="maximum-duration-help">0 = source max</span>
-                        <span class="duration-input"><input id="maximum-duration" type="number" min="0" step="0.1" value="30" aria-describedby="maximum-duration-help"><button id="maximum-duration-max" class="duration-max-button" type="button" aria-pressed="false" title="Use the longest loop this source can support">MAX</button></span>
+                        <span class="duration-input"><input id="maximum-duration" type="number" min="0" step="0.1" value="0" aria-describedby="maximum-duration-help"><button id="maximum-duration-max" class="duration-max-button" type="button" aria-pressed="false" title="Use the longest loop this source can support">MAX</button></span>
                       </div>
                     </div>
-                    <label class="control-row">Objective<select id="analysis-mode"><option value="balanced">Balanced</option><option value="cleanest">Cleanest seam</option><option value="longest">Prefer length</option></select></label>
+                    <label class="control-row">Objective<select id="analysis-mode"><option value="balanced">Balanced</option><option value="cleanest" selected>Cleanest seam</option><option value="longest">Prefer length</option></select></label>
                     <label class="control-row">Alternatives<select id="candidate-count"><option value="3">3 candidates</option><option value="5" selected>5 candidates</option><option value="8">8 candidates</option></select></label>
-                    <label class="control-row control-row--range">
-                      <span>Quality vs. length</span>
-                      <input id="quality-bias" type="range" min="0" max="100" value="75">
-                      <output id="quality-bias-output" for="quality-bias">75% seam quality</output>
-                    </label>
                     <button id="analyze-button" class="button button--analyze" type="submit"><span>Analyze again</span><b>→</b></button>
                   </fieldset>
                 </form>

@@ -28,15 +28,8 @@ export function durationRangeForSource(
   ) {
     return {
       availableMaximumSeconds,
-      minimumSeconds: Math.min(
-        2,
-        Math.max(
-          0.4,
-          Math.round(selectableMaximumSeconds * 0.35 * DURATION_STEPS_PER_SECOND) /
-            DURATION_STEPS_PER_SECOND,
-        ),
-      ),
-      maximumSeconds: Math.min(30, selectableMaximumSeconds),
+      minimumSeconds: Math.min(15, Math.max(0.4, selectableMaximumSeconds)),
+      maximumSeconds: SOURCE_MAXIMUM_DURATION,
     }
   }
 

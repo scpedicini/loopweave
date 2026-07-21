@@ -93,7 +93,6 @@ export class LocalLoopAnalysisPipeline {
       minimumDurationSeconds,
       maximumDurationSeconds,
       candidateCount: Math.round(clamp(options.candidateCount, 1, 12)),
-      qualityBias: clamp(options.qualityBias, 0, 1),
       mode: options.mode,
     }
   }

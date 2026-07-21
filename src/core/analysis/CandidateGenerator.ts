@@ -15,6 +15,8 @@ export interface CoarseCandidate {
   readonly coarseCost: number
 }
 
+const BALANCED_QUALITY_BIAS = 0.75
+
 export type CandidateProgress = (fraction: number) => void
 
 class RangeMaximumTree {
@@ -287,7 +289,7 @@ export class CandidateGenerator {
     if (options.mode === 'cleanest') {
       return 0.025
     }
-    return 0.18 * (1 - options.qualityBias) + 0.035
+    return 0.18 * (1 - BALANCED_QUALITY_BIAS) + 0.035
   }
 
   private diversify(
