@@ -1,0 +1,125 @@
+# Builds the static site in CI and atomically activates an immutable release.
+# Every deployment-specific value comes from a GitHub Actions secret.
+
+name: Build & Deploy
+
+on:
+  push:
+    branches: [prod]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    if: github.ref == 'refs/heads/prod'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build site
+        run: pnpm build
+
+      - name: Bundle static release
+        run: |
+          set -euo pipefail
+          tar -C dist -czf release.tgz \
+            --exclude='*.map' \
+            --exclude='*.symbols' \
+            --exclude='*.d.ts' \
+            --exclude='.DS_Store' \
+            .
+
+      - name: Trust deployment host key
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${SSH_KNOWN_HOSTS:?SSH_KNOWN_HOSTS secret is required}"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy static release
+        env:
+          DEPLOY_BASE: ${{ secrets.DEPLOY_BASE }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_BASE:?DEPLOY_BASE secret is required}"
+          : "${SSH_HOST:?SSH_HOST secret is required}"
+          : "${SSH_KEY:?SSH_KEY secret is required}"
+          : "${SSH_USERNAME:?SSH_USERNAME secret is required}"
+
+          eval "$(ssh-agent -s)" >/dev/null
+          trap 'ssh-agent -k >/dev/null' EXIT
+          ssh-add - <<< "$SSH_KEY" >/dev/null 2>&1
+
+          scp -q release.tgz \
+            "$SSH_USERNAME@$SSH_HOST:/tmp/release-$GITHUB_SHA.tgz"
+
+          # DEPLOY_BASE and GITHUB_SHA intentionally expand on the trusted runner.
+          # shellcheck disable=SC2029
+          ssh "$SSH_USERNAME@$SSH_HOST" \
+            "BASE='$DEPLOY_BASE' SHA='$GITHUB_SHA' bash -s" <<'EOF'
+            set -euo pipefail
+
+            case "$BASE" in
+              /*) ;;
+              *) echo "Deployment base must be an absolute path" >&2; exit 1 ;;
+            esac
+            if [ "$BASE" = "/" ]; then
+              echo "Refusing to deploy to the filesystem root" >&2
+              exit 1
+            fi
+            if [ -e "$BASE/current" ] && [ ! -L "$BASE/current" ]; then
+              echo "Refusing to replace a non-symlink current path" >&2
+              exit 1
+            fi
+            case "$SHA" in
+              ''|*[!0-9a-f]*) echo "Invalid release identifier" >&2; exit 1 ;;
+            esac
+
+            ARCHIVE="/tmp/release-$SHA.tgz"
+            RELEASES="$BASE/releases"
+            RELEASE="$RELEASES/$SHA"
+            STAGING="$RELEASES/.$SHA.tmp"
+
+            trap 'rm -f "$ARCHIVE"; rm -rf "$STAGING"' EXIT
+            mkdir -p "$RELEASES"
+            rm -rf "$STAGING"
+            mkdir -p "$STAGING"
+            tar -xzf "$ARCHIVE" -C "$STAGING"
+
+            if [ -e "$RELEASE" ]; then
+              rm -rf "$STAGING"
+            else
+              mv "$STAGING" "$RELEASE"
+            fi
+
+            touch "$RELEASE"
+            ln -sfn "$RELEASE" "$BASE/current"
+
+            # Keep ten releases so cached HTML can still resolve older assets.
+            ls -1dt "$RELEASES"/* 2>/dev/null \
+              | tail -n +11 \
+              | xargs -r rm -rf -- \
+              || true
+          EOF
