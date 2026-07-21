@@ -8,7 +8,7 @@ Loopweave is fully deployed and ready to use at [loopweave.specr.net](https://lo
 
 ## Demo
 
-<video src="./docs/assets/loopweave-demo.mp4" controls width="1248"></video>
+https://github.com/user-attachments/assets/d4944d00-9468-4ee2-b075-58994dfba06e
 
 ## Current vertical slice
 
@@ -30,12 +30,15 @@ This is an engineering foundation, not a trained perceptual oracle. Objective sc
 ```sh
 pnpm install
 pnpm dev
+pnpm brand:assets
 pnpm test
 pnpm check
 pnpm quality
 ```
 
 The development server uses port `6772`. `pnpm build` produces a static `dist/` deployment.
+Canonical artwork and the generated-file mapping are documented in
+[`assets/brand/README.md`](./assets/brand/README.md).
 
 ## Browser constraints
 

@@ -22,7 +22,7 @@
     "dev": "vite --port 6772",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "brand:icons": "bash scripts/generate-brand-icons.sh",
+    "brand:assets": "bash scripts/generate-brand-assets.sh",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
