@@ -1,10 +1,8 @@
 # Loopweave
 
-[![Loopweave, local audio texture lab](./public/brand/loopweave-social.jpg)](https://loopweave.specr.net)
+Loopweave is a browser-first audio texture tool that finds, renders, auditions, and exports perceptually promising loops from an arbitrary recording. Audio decoding and every analysis step happens entirely clientside. These audio files can be used for ambience, ASMR, and other loopable content. Trying belching or vomiting on your mic to find the perfect ASMR quiet-time loop for those midnight marathon study sessions.
 
-Loopweave is a browser-first audio texture tool that finds, renders, auditions, and exports perceptually promising loops from an arbitrary recording. Audio decoding and every analysis step happen locally; user audio is never uploaded. These audio files can be used for ambience, ASMR, and other loopable content.
-
-Loopweave is fully deployed and ready to use at [loopweave.specr.net](https://loopweave.specr.net). No installation or local build is required.
+Loopweave is also fully deployed and ready to use at [loopweave.specr.net](https://loopweave.specr.net). No installation or local build is required.
 
 ## Demo
 
@@ -23,8 +21,6 @@ https://github.com/user-attachments/assets/6ddda0eb-7c39-4557-8cbb-76c7fddcb81a
 - Original-source playback and waveform playheads for source and loop previews.
 - Full-loop and focused seam auditioning, plus baked 24-bit WAV export.
 
-This is an engineering foundation, not a trained perceptual oracle. Objective scoring still needs calibration against a serious listening-test corpus before quality numbers should be treated as production claims.
-
 ## Commands
 
 ```sh
@@ -42,6 +38,6 @@ Canonical artwork and the generated-file mapping are documented in
 
 ## Browser constraints
 
-While the application technically works on mobile, `decodeAudioData()` decodes a complete file into memory. Stereo 48 kHz float PCM costs roughly 22 MiB per minute before temporary buffers. The current application is therefore desktop-first. Streaming codecs, OPFS scratch storage, and WebAssembly/SIMD kernels are planned performance layers, not architectural rewrites.
+While the application technically works on mobile, `decodeAudioData()` decodes a complete file into memory. Stereo 48 kHz float PCM costs roughly 22 MiB per minute before temporary buffers. That means there's a high probability of it turning into a mountain of bountiful butts if you insist on using it on your Nokia N-Gage. The current application is therefore desktop-first. 
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the component boundaries and backend path.
