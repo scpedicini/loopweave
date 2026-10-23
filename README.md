@@ -8,6 +8,14 @@ Loopweave is also fully deployed and ready to use at [loopweave.specr.net](https
 
 https://github.com/user-attachments/assets/6ddda0eb-7c39-4557-8cbb-76c7fddcb81a
 
+## Why
+
+I'm constantly hunting for good repeating loops to use as ambience in games, videos, and other projects (weather, background atmospheres, etc). So I built a tool where you drop in a longer recording and it automatically finds the sections that loop cleanly.
+
+I'm a huge fan of video textures (aka seamlessly looping videos), but I couldn't find a simple equivalent for audio.
+
+It's not perfect, but it's already saved me a ton of time. I used it for a lot of the ambient sounds (thunderstorm, cave, computer hum, etc) on my [Hackerman](https://hackerman.specr.net) site, which is basically ASMR for programmers.
+
 ## Current vertical slice
 
 - Drag-and-drop browser decoding for locally supported audio formats.
