@@ -125,25 +125,6 @@ select:focus-visible,
   align-items: center;
 }
 
-.local-badge {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  color: #9ba8ad;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.075em;
-  text-transform: uppercase;
-}
-
-.local-badge > span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--mint);
-  box-shadow: 0 0 14px rgba(100, 233, 196, 0.75);
-}
-
 .github-link {
   display: grid;
   width: 38px;
@@ -377,7 +358,7 @@ main {
 }
 
 .drop-title {
-  margin: 0 0 9px;
+  margin: 0 0 14px;
   color: #eef4f3;
   font-size: 21px;
   font-weight: 590;
@@ -385,20 +366,11 @@ main {
 }
 
 .drop-copy {
-  max-width: 390px;
   margin: 0 0 24px;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.55;
   text-align: left;
-}
-
-.drop-footnote {
-  margin: 19px 0 0;
-  color: var(--quiet);
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
 }
 
 .button {
@@ -1463,16 +1435,24 @@ footer {
   line-height: 1.5;
 }
 
-.footer-copy {
-  max-width: 630px;
+.footer-credit {
   margin: 0;
 }
 
-.footer-stack {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+.footer-credit a {
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+  transition:
+    color 160ms ease,
+    text-decoration-color 160ms ease;
+}
+
+.footer-credit a:hover,
+.footer-credit a:focus-visible {
+  color: var(--mint);
+  text-decoration-color: currentColor;
 }
 
 @keyframes rotate {
@@ -1543,15 +1523,6 @@ footer {
     height: 65px;
   }
 
-  .local-badge {
-    font-size: 0;
-  }
-
-  .local-badge::after {
-    font-size: 9px;
-    content: "Local only";
-  }
-
   main {
     padding-inline: 14px;
   }
@@ -1590,11 +1561,6 @@ footer {
   .drop-artwork {
     object-fit: contain;
     object-position: center;
-  }
-
-  .drop-footnote {
-    max-width: 270px;
-    line-height: 1.5;
   }
 
   .source-header {
